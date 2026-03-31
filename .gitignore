@@ -1,0 +1,24 @@
+# Logs
+logs/
+*.log
+
+# Results and trained models
+results/
+
+# Job queue
+jobqueue/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Progress tracking
+PROGRESS.md
+
+# Data
+*.nii.gz
+*.nii
+
+# OS
+.DS_Store
