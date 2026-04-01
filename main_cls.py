@@ -166,10 +166,10 @@ def print_seed_header(seed, T, method, model):
     _box(f' Seed {seed}  |  {method}  |  {model}  |  {T} rounds ', char='─')
     print(flush=True)
 
-def _fmt_metrics(label, center, loss, acc, f1, auc, star=''):
+def _fmt_metrics(label, center, loss, acc, prec, f1, recall, auc, star=''):
     return (f'  {label:<6} {center:<10}{star:<2}'
             f'  loss={loss:7.4f}  acc={acc:6.2f}%'
-            f'  f1={f1:6.2f}%  auc={auc:6.2f}%')
+            f'  prec={prec:6.2f}%  f1={f1:6.2f}%  recall={recall:6.2f}%  auc={auc:6.2f}%')
 
 def print_round_header(rnd, T, elapsed_so_far, avg_round_time):
     eta = '--:--:--'
@@ -196,8 +196,8 @@ def print_round_table(client_names, select_list,
     print(flush=True)
     hdr = (f"  {'Center':<{C}}  "
            f"{'TrLoss':>7}  {'TrACC%':>7}  │  "
-           f"{'ValACC%':>7}  {'ValF1%':>6}  {'ValAUC%':>7}  │  "
-           f"{'TstACC%':>7}  {'TstF1%':>6}  {'TstAUC%':>7}  {'':4}")
+           f"{'ValACC%':>7}  {'ValPrec%':>8}  {'ValF1%':>6}  {'ValRec%':>7}  {'ValAUC%':>7}  │  "
+           f"{'TstACC%':>7}  {'TstPrec%':>8}  {'TstF1%':>6}  {'TstRec%':>7}  {'TstAUC%':>7}  {'':4}")
     sep = '  ' + '─' * (len(hdr) - 2)
     print(hdr, flush=True)
     print(sep, flush=True)
@@ -207,8 +207,8 @@ def print_round_table(client_names, select_list,
         star = ' ★' if test_improved.get(i, False) else '  '
         print(f"  {client_names[i]:<{C}}  "
               f"{train_losses[i]:7.4f}  {train_accs[i]:7.2f}%  │  "
-              f"{va:7.2f}%  {vf:6.2f}%  {vauc:7.2f}%  │  "
-              f"{ta:7.2f}%  {tf:6.2f}%  {tauc:7.2f}%  {star}", flush=True)
+              f"{va:7.2f}%  {vp:8.2f}%  {vf:6.2f}%  {vr:7.2f}%  {vauc:7.2f}%  │  "
+              f"{ta:7.2f}%  {tp:8.2f}%  {tf:6.2f}%  {tr:7.2f}%  {tauc:7.2f}%  {star}", flush=True)
     print(sep, flush=True)
 
 def print_round_summary(rnd_time):
@@ -220,7 +220,7 @@ def print_seed_summary(seed, client_names, client_nodes):
     _section(f'Seed {seed} — Final Results')
     print(flush=True)
     hdr = (f"  {'':8} {'Center':<10}  "
-           f"{'ACC%':>7}  {'Recall%':>7}  {'Prec%':>7}  {'F1%':>7}  {'AUC%':>7}  {'Round':>6}")
+           f"{'ACC%':>7}  {'Prec%':>7}  {'F1%':>7}  {'Recall%':>7}  {'AUC%':>7}  {'Round':>6}")
     print(hdr, flush=True)
     print('  ' + '─' * (len(hdr) - 2), flush=True)
 
@@ -228,14 +228,14 @@ def print_seed_summary(seed, client_names, client_nodes):
     for i, name in enumerate(client_names):
         _, ba, br, bp, bf, bauc, be = client_nodes[i].recorder.log(is_log=False)
         print(f"  {'':8} {name:<10}  "
-              f"{ba:7.2f}%  {br:7.2f}%  {bp:7.2f}%  {bf:7.2f}%  {bauc:7.2f}%  {be:6d}",
+              f"{ba:7.2f}%  {bp:7.2f}%  {bf:7.2f}%  {br:7.2f}%  {bauc:7.2f}%  {be:6d}",
               flush=True)
 
     print(f"\n  [Last 5 rounds — Test]", flush=True)
     for i, name in enumerate(client_names):
         _, la, lr_, lp, lf, lauc = client_nodes[i].averager.log(is_log=False)
         print(f"  {'':8} {name:<10}  "
-              f"{la:7.2f}%  {lr_:7.2f}%  {lp:7.2f}%  {lf:7.2f}%  {lauc:7.2f}%",
+              f"{la:7.2f}%  {lp:7.2f}%  {lf:7.2f}%  {lr_:7.2f}%  {lauc:7.2f}%",
               flush=True)
     print(flush=True)
 
@@ -244,7 +244,8 @@ def print_final_results(method, client_names, best_avgs, last_avgs):
     _box(f' FINAL RESULTS — {method} ')
     print(flush=True)
     hdr = (f"  {'Center':<10}  "
-           f"{'ACC (mean±std)':^18}  {'F1 (mean±std)':^18}  {'AUC (mean±std)':^18}")
+           f"{'ACC (mean±std)':^18}  {'Prec (mean±std)':^18}  "
+           f"{'F1 (mean±std)':^18}  {'Recall (mean±std)':^20}  {'AUC (mean±std)':^18}")
     sep = '  ' + '─' * (len(hdr) - 2)
 
     for tag, avgs in [('Best (val→test)', best_avgs), ('Last-5 test', last_avgs)]:
@@ -254,12 +255,16 @@ def print_final_results(method, client_names, best_avgs, last_avgs):
         for i, name in enumerate(client_names):
             s = avgs[i].log(is_log=False)
             # s = (m_acc, s_acc, m_rec, s_rec, m_prec, s_prec, m_f1, s_f1, m_auc, s_auc)
-            ma, sa = s[0], s[1]
-            mf, sf = s[6], s[7]
-            mu, su = s[8], s[9]
+            ma, sa   = s[0], s[1]
+            mrec, srec = s[2], s[3]
+            mp, sp   = s[4], s[5]
+            mf, sf   = s[6], s[7]
+            mu, su   = s[8], s[9]
             print(f"  {name:<10}  "
                   f"{ma:6.2f} ± {sa:5.2f}        "
+                  f"{mp:6.2f} ± {sp:5.2f}        "
                   f"{mf:6.2f} ± {sf:5.2f}        "
+                  f"{mrec:6.2f} ± {srec:5.2f}          "
                   f"{mu:6.2f} ± {su:5.2f}", flush=True)
         print(flush=True)
 
