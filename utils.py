@@ -301,7 +301,6 @@ def cosine_lr(base_lr: float, rnd: int, T: int) -> float:
     """Cosine annealing: lr decays from base_lr to 0 over T rounds."""
     import math
     return base_lr * 0.5 * (1.0 + math.cos(math.pi * rnd / T))
-    return args
 
 
 # ---------------------------------------------------------------------------
